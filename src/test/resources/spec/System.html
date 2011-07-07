@@ -1,0 +1,25 @@
+<html xmlns:concordion="http://www.concordion.org/2007/concordion" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.concordion.org/2007/concordion ">
+<link href="../concordion.css" rel="stylesheet" type="text/css"/>
+<body>
+<h1>System Test</h1>
+
+<p>In order to provide necessary information for planning the roadshow, I want confirmation messages to be routed
+    to the appropriate partner.</p>
+
+<div class="example">
+    <h3>Examples</h3>
+    <span concordion:execute="#result = createFileAndWait(#fileContent, #millisecondsToWait)">
+    <p>Given a file with the following content:</p>
+    <pre concordion:set="#fileContent">first_name;last_name;company;email;origin
+Stefan;S.;OPITZ CONSULTING Gummersbach GmbH;stefan.s@example.nowhere;OC
+Eberhard;W.;SpringSource GmbH;eberhard.w@example.nowhere;S2
+Sigrid;H.;SpringSource GmbH;sigrid.h@example.nowhere;S2
+Nils;W.;OPITZ CONSULTING Gummersbach GmbH;nils.w@example.nowhere;OC</pre>
+    <p>When than file arrives and <b concordion:set="#millisecondsToWait">2000</b> ms have passed,
+    there should be <b concordion:assertEquals="#result.databaseEntries">2</b> database entries and
+    <b concordion:assertEquals="#result.messages">2</b> messages in the mailbox.</p>
+    </span>
+</div>
+</body>
+</html>

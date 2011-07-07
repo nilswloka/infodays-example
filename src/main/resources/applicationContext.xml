@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/integration"
+             xmlns:file="http://www.springframework.org/schema/integration/file"
+             xmlns:mail="http://www.springframework.org/schema/integration/mail"
+             xmlns:beans="http://www.springframework.org/schema/beans"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:p="http://www.springframework.org/schema/p"
+             xmlns:context="http://www.springframework.org/schema/context"
+             xmlns:util="http://www.springframework.org/schema/util"
+             xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+             xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd
+	    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.0.xsd
+	    http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+	    http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-1.0.xsd
+	    http://www.springframework.org/schema/integration/file http://www.springframework.org/schema/integration/file/spring-integration-file-1.0.xsd
+	    http://www.springframework.org/schema/integration/mail http://www.springframework.org/schema/integration/mail/spring-integration-mail-1.0.xsd">
+
+    <util:properties id="configuration" location="classpath:configuration.properties"/>
+
+    <jdbc:embedded-database id="dataSource" type="DERBY">
+        <jdbc:script location="classpath:schema.sql"/>
+    </jdbc:embedded-database>
+
+    <file:inbound-channel-adapter directory="#{configuration['input.directory']}" prevent-duplicates="true"
+                                  channel="incoming-files">
+        <poller>
+            <interval-trigger interval="#{configuration['input.poll_interval']}"/>
+        </poller>
+    </file:inbound-channel-adapter>
+
+    <channel id="incoming-files"/>
+
+    <file:file-to-string-transformer input-channel="incoming-files" output-channel="incoming-file-content"/>
+
+    <channel id="incoming-file-content"/>
+
+    <splitter input-channel="incoming-file-content" output-channel="confirmations" ref="confirmationListBuilder"
+              method="buildFrom"/>
+
+    <beans:bean id="confirmationListBuilder" class="examples.outsidein.ConfirmationListBuilder"/>
+
+    <channel id="confirmations"/>
+
+    <router input-channel="confirmations" ref="companyResolver" method="companyFor"
+            channel-resolver="companyChannelResolver" resolution-required="true"/>
+
+    <beans:bean id="companyResolver" class="examples.outsidein.CompanyResolver"/>
+
+    <beans:bean id="companyChannelResolver" class="org.springframework.integration.channel.MapBasedChannelResolver">
+        <beans:constructor-arg>
+            <beans:map>
+                <beans:entry key="s2" value-ref="springsource-confirmations"/>
+                <beans:entry key="oc" value-ref="opitz-consulting-confirmations"/>
+            </beans:map>
+        </beans:constructor-arg>
+    </beans:bean>
+
+    <channel id="springsource-confirmations"/>
+
+    <service-activator input-channel="springsource-confirmations" ref="confirmationRepository" method="add"/>
+
+    <beans:bean id="confirmationRepository" class="examples.outsidein.ConfirmationRepository">
+        <beans:property name="simpleJdbcTemplate">
+            <beans:bean class="org.springframework.jdbc.core.simple.SimpleJdbcTemplate">
+                <beans:constructor-arg ref="dataSource"/>
+            </beans:bean>
+        </beans:property>
+    </beans:bean>
+
+    <channel id="opitz-consulting-confirmations"/>
+
+    <transformer input-channel="opitz-consulting-confirmations" output-channel="opitz-consulting-confirmation-texts"
+                 ref="confirmationTextBuilder" method="textFor"/>
+
+    <beans:bean id="confirmationTextBuilder" class="examples.outsidein.ConfirmationTextBuilder"/>
+
+    <channel id="opitz-consulting-confirmation-texts"/>
+
+    <mail:header-enricher input-channel="opitz-consulting-confirmation-texts"
+                          output-channel="opitz-consulting-confirmation-mails"
+                          to="#{configuration['output.email_address']}" subject="Confirmation"/>
+
+    <channel id="opitz-consulting-confirmation-mails"/>
+
+    <mail:outbound-channel-adapter channel="opitz-consulting-confirmation-mails" mail-sender="mailSender"/>
+
+    <beans:bean id="mailSender" class="org.springframework.mail.javamail.JavaMailSenderImpl">
+        <beans:property name="host" value="mail.opitz-consulting.int"/>
+    </beans:bean>
+
+</beans:beans>
